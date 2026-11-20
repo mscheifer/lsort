@@ -21,5 +21,7 @@ jobs:
           cache: poetry
       - name: Install dependencies
         run: poetry install --with dev
+      - name: Check formatting
+        run: poetry run ruff format --check
       - name: Tests
         run: poetry run pytest

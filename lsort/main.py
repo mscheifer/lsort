@@ -6,6 +6,7 @@ from typing import Iterator, Optional, Sequence
 
 from .lsort import sort_module
 
+
 def _iter_python_files(paths: Sequence[str]) -> Iterator[Path]:
     for path in paths:
         p = Path(path)
@@ -21,10 +22,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     parser.add_argument("paths", nargs="+", help="Files or directories")
     parser.add_argument(
-        "--check", action="store_true", help="Don't write; exit 1 if any file would change"
+        "--check",
+        action="store_true",
+        help="Don't write; exit 1 if any file would change",
     )
     parser.add_argument(
-        "--diff", action="store_true", help="Print a unified diff instead of writing files"
+        "--diff",
+        action="store_true",
+        help="Print a unified diff instead of writing files",
     )
     args = parser.parse_args(argv)
 

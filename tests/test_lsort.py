@@ -9,6 +9,7 @@ from lsort.sort import LSortError, sort_module
 def sort_source(source: str) -> str:
     return sort_module(cst.parse_module(source)).code
 
+
 def check(before: str, after: str | None = None) -> None:
     """after=None means the source must come back unchanged."""
     before = dedent(before).lstrip("\n")

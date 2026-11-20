@@ -1,10 +1,12 @@
 import argparse
 import difflib
 import sys
+from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import Iterator, Optional, Sequence
 
-from .lsort import sort_module
+import libcst as cst
+
+from .lsort import LSortError, sort_module
 
 
 def _iter_python_files(paths: Sequence[str]) -> Iterator[Path]:
@@ -16,7 +18,7 @@ def _iter_python_files(paths: Sequence[str]) -> Iterator[Path]:
             yield p
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="lsort", description="Sort dict literals marked with '# lsort'."
     )

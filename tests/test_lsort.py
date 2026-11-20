@@ -1,7 +1,7 @@
 from textwrap import dedent
 
-import pytest
 import libcst as cst
+import pytest
 
 from lsort.sort import LSortError, sort_module
 

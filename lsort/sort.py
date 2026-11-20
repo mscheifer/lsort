@@ -21,8 +21,10 @@ class LSortError(Exception):
 class _Unit:
     """A dict entry plus the trivia that is attached to it."""
 
-    leading_comment: Sequence[cst.EmptyLine]  # Comments or blank lines directly above the entry
-    leading_indent: cst.SimpleWhitespace # The indentation whitespace before the element
+    # Comments or blank lines directly above the entry
+    leading_comment: Sequence[cst.EmptyLine]
+    # The indentation whitespace before the element
+    leading_indent: cst.SimpleWhitespace
     element: cst.DictElement
 
 
@@ -36,10 +38,14 @@ def _has_marker(node: cst.Dict) -> bool:
 
 def _apply_whitespace(whitespace, leading_comment, leading_indent):
     if isinstance(whitespace, cst.ParenthesizedWhitespace):
-        return whitespace.with_changes(empty_lines=leading_comment, last_line=leading_indent)
+        return whitespace.with_changes(
+            empty_lines=leading_comment, last_line=leading_indent
+        )
     assert isinstance(whitespace, cst.SimpleWhitespace)
     assert whitespace.value == ""
-    return cst.ParenthesizedWhitespace(empty_lines=leading_comment, last_line=leading_indent)
+    return cst.ParenthesizedWhitespace(
+        empty_lines=leading_comment, last_line=leading_indent
+    )
 
 
 def _sort_dict(node: cst.Dict, pos: tuple[int, int]) -> cst.Dict:
@@ -62,11 +68,16 @@ def _sort_dict(node: cst.Dict, pos: tuple[int, int]) -> cst.Dict:
             if not isinstance(el.comma, cst.MaybeSentinel):
                 assert isinstance(el.comma.whitespace_after, cst.SimpleWhitespace)
                 assert el.comma.whitespace_after.value == ""
-                new_whitespace = cst.ParenthesizedWhitespace(first_line=node.rbrace.whitespace_before.first_line, last_line=el.comma.whitespace_after)
+                new_whitespace = cst.ParenthesizedWhitespace(
+                    first_line=node.rbrace.whitespace_before.first_line,
+                    last_line=el.comma.whitespace_after,
+                )
                 new_comma = el.comma.with_changes(whitespace_after=new_whitespace)
                 trailing_comma = True
             else:
-                new_whitespace = cst.ParenthesizedWhitespace(first_line=node.rbrace.whitespace_before.first_line)
+                new_whitespace = cst.ParenthesizedWhitespace(
+                    first_line=node.rbrace.whitespace_before.first_line
+                )
                 new_comma = cst.Comma(whitespace_after=new_whitespace)
                 trailing_comma = False
             el = el.with_changes(comma=new_comma)
@@ -80,29 +91,47 @@ def _sort_dict(node: cst.Dict, pos: tuple[int, int]) -> cst.Dict:
     for j, unit in enumerate(sorted_units):
         base_comma = unit.element.comma
         if j < len(sorted_units) - 1:
-            leading_comment = sorted_units[j+1].leading_comment
-            leading_indent = sorted_units[j+1].leading_indent
-            whitespace_after = _apply_whitespace(base_comma.whitespace_after, leading_comment, leading_indent)
+            leading_comment = sorted_units[j + 1].leading_comment
+            leading_indent = sorted_units[j + 1].leading_indent
+            whitespace_after = _apply_whitespace(
+                base_comma.whitespace_after, leading_comment, leading_indent
+            )
             new_comma = base_comma.with_changes(whitespace_after=whitespace_after)
         else:
-            whitespace_after = _apply_whitespace(base_comma.whitespace_after, [], cst.SimpleWhitespace(""))
+            whitespace_after = _apply_whitespace(
+                base_comma.whitespace_after, [], cst.SimpleWhitespace("")
+            )
             new_comma = base_comma.with_changes(whitespace_after=whitespace_after)
         element = unit.element.with_changes(comma=new_comma)
         new_elements.append(element)
 
     top_whitespace = _apply_whitespace(
-        node.lbrace.whitespace_after, sorted_units[0].leading_comment, sorted_units[0].leading_indent
+        node.lbrace.whitespace_after,
+        sorted_units[0].leading_comment,
+        sorted_units[0].leading_indent,
     )
 
     rbrace_whitespace = node.rbrace.whitespace_before
-    rbrace = node.rbrace.with_changes(whitespace_before=rbrace_whitespace.with_changes(first_line=new_elements[-1].comma.whitespace_after.first_line))
+    rbrace = node.rbrace.with_changes(
+        whitespace_before=rbrace_whitespace.with_changes(
+            first_line=new_elements[-1].comma.whitespace_after.first_line
+        )
+    )
     if trailing_comma:
-        new_elements[-1] = new_elements[-1].with_changes(comma= new_elements[-1].comma.with_changes(whitespace_after=cst.SimpleWhitespace("")))
+        new_elements[-1] = new_elements[-1].with_changes(
+            comma=new_elements[-1].comma.with_changes(
+                whitespace_after=cst.SimpleWhitespace("")
+            )
+        )
     else:
-        new_elements[-1] = new_elements[-1].with_changes(comma=cst.MaybeSentinel.DEFAULT)
+        new_elements[-1] = new_elements[-1].with_changes(
+            comma=cst.MaybeSentinel.DEFAULT
+        )
 
     return node.with_changes(
-        lbrace=node.lbrace.with_changes(whitespace_after=top_whitespace), elements=new_elements, rbrace=rbrace
+        lbrace=node.lbrace.with_changes(whitespace_after=top_whitespace),
+        elements=new_elements,
+        rbrace=rbrace,
     )
 
 
@@ -115,9 +144,13 @@ class _LSorter(cst.CSTTransformer):
 
         for i, el in enumerate(updated_node.elements):
             if isinstance(el, cst.StarredDictElement):
-                start = self.get_metadata(PositionProvider, original_node.elements[i]).start
+                start = self.get_metadata(
+                    PositionProvider, original_node.elements[i]
+                ).start
                 raise LSortError(
-                    "cannot sort a dict containing ** unpacking", start.line, start.column
+                    "cannot sort a dict containing ** unpacking",
+                    start.line,
+                    start.column,
                 )
 
         start = self.get_metadata(PositionProvider, original_node).start

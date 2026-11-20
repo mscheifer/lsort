@@ -1,0 +1,23 @@
+[project]
+name = "lsort"
+version = "0.1.0"
+description = "An auto-formatter for large Python literals"
+authors = [
+    {name = "Matthew Scheifer",email = "matthew.scheifer@gmail.com"}
+]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "libcst (>=1.9.0,<2.0.0)"
+]
+
+[dependency-groups]
+dev = [
+    "pytest (>=9.2.0,<10.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

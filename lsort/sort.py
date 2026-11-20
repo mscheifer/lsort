@@ -1,5 +1,5 @@
 import re
-from collections.abc import Iterator, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 import libcst as cst

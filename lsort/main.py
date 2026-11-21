@@ -18,7 +18,7 @@ def _iter_python_files(paths: Sequence[str]) -> Iterator[Path]:
             yield p
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def main(argv: Sequence[str] | None) -> int:
     parser = argparse.ArgumentParser(
         prog="lsort", description="Sort dict literals marked with '# lsort'."
     )
@@ -33,6 +33,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="Print a unified diff instead of writing files",
     )
+
+    # If argv is None this will read the command line args
     args = parser.parse_args(argv)
 
     changed = errors = 0
@@ -75,4 +77,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    sys.exit(main(None))

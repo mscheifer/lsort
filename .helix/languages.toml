@@ -2,7 +2,11 @@
 command = "ruff"
 args = ["server"]
 
+[language-server.pyrefly]
+command = "pyrefly"
+args = ["lsp"]
+
 [[language]]
 name = "python"
-language-servers = ["ruff", "pylsp"]
+language-servers = ["ruff", "pyrefly"]
 auto-format = true

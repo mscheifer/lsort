@@ -23,6 +23,8 @@ jobs:
         run: poetry install --with dev
       - name: Lint
         run: poetry run ruff check
+      - name: Type checking
+        run: poetry run pyrefly check
       - name: Check formatting
         run: poetry run ruff format --check
       - name: Tests

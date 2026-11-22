@@ -6,7 +6,7 @@ from pathlib import Path
 
 import libcst as cst
 
-from .lsort import LSortError, sort_module
+from .sort import LSortError, sort_module
 
 
 def _iter_python_files(paths: Sequence[str]) -> Iterator[Path]:

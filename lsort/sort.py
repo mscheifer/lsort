@@ -18,7 +18,7 @@ class LSortError(Exception):
 
 
 @dataclass(frozen=True)
-class _Unit:
+class _DictEntry:
     """A dict entry plus the trivia that is attached to it."""
 
     # Comments or blank lines directly above the entry
@@ -26,6 +26,8 @@ class _Unit:
     # The indentation whitespace before the element
     leading_indent: cst.SimpleWhitespace
     element: cst.DictElement
+    pre_comma_whitespace: cst.BaseParenthesizableWhitespace | None
+    trailing_comment: cst.TrailingWhitespace
 
 
 def _has_marker(node: cst.Dict) -> bool:
@@ -36,21 +38,28 @@ def _has_marker(node: cst.Dict) -> bool:
     return comment is not None and MARKER.match(comment.value) is not None
 
 
-def _apply_whitespace(whitespace, leading_comment, leading_indent):
-    if isinstance(whitespace, cst.ParenthesizedWhitespace):
-        return whitespace.with_changes(
-            empty_lines=leading_comment, last_line=leading_indent
-        )
-    assert isinstance(whitespace, cst.SimpleWhitespace)
-    assert whitespace.value == ""
-    return cst.ParenthesizedWhitespace(
-        empty_lines=leading_comment, last_line=leading_indent
-    )
-
-
 def _sort_dict(node: cst.Dict, pos: tuple[int, int]) -> cst.Dict:
-    first_new_lines = node.lbrace.whitespace_after.empty_lines
-    first_last_line = node.lbrace.whitespace_after.last_line
+    # Comments and witespace are associated in an annoying way here.
+    # Comments on separate lines end up attached to the preceding comma. For example:
+    #
+    #  {
+    #    "a": 1,
+    #    # B must be a power of 2
+    #    "b": 4,
+    #  }
+    #
+    # The comment will end up attached to the comma at the end of "a" instead of to before the "b" element
+    #
+    # Even more confusingly, a comment after the same line as the last element ends up associated with the closing brace. e.g.
+    #
+    #  {
+    #    "a": 1,
+    #    "b": 4, # B must be a power of 2
+    #  }
+    #
+    # The comment ends up associating with the `}` and not with the comma like all the other same line comments do.
+    #
+    # So a bunch of this code is just trying to manage this weirdness.
 
     elements = node.elements
 
@@ -58,80 +67,75 @@ def _sort_dict(node: cst.Dict, pos: tuple[int, int]) -> cst.Dict:
     for i, el in enumerate(elements):
         assert isinstance(el, cst.DictElement)
         if i == 0:
-            leading_comment = first_new_lines
-            leading_indent = first_last_line
+            leading_comment = node.lbrace.whitespace_after.empty_lines
+            leading_indent = node.lbrace.whitespace_after.last_line
         else:
             leading_comment = elements[i - 1].comma.whitespace_after.empty_lines
             leading_indent = elements[i - 1].comma.whitespace_after.last_line
-        if i == len(elements) - 1:
-            # For some reason the last trailing comment ends up on the whitespace owned by the closing brace
+        if i != len(elements) - 1:
+            trailing_comment = el.comma.whitespace_after.first_line
+        else:
             if not isinstance(el.comma, cst.MaybeSentinel):
                 assert isinstance(el.comma.whitespace_after, cst.SimpleWhitespace)
                 assert el.comma.whitespace_after.value == ""
-                new_whitespace = cst.ParenthesizedWhitespace(
-                    first_line=node.rbrace.whitespace_before.first_line,
-                    last_line=el.comma.whitespace_after,
-                )
-                new_comma = el.comma.with_changes(whitespace_after=new_whitespace)
                 trailing_comma = True
             else:
-                new_whitespace = cst.ParenthesizedWhitespace(
-                    first_line=node.rbrace.whitespace_before.first_line
-                )
-                new_comma = cst.Comma(whitespace_after=new_whitespace)
                 trailing_comma = False
-            el = el.with_changes(comma=new_comma)
-        units.append(_Unit(leading_comment, leading_indent, el))
+            # For some reason the last trailing comment ends up on the whitespace owned by the closing brace
+            trailing_comment = node.rbrace.whitespace_before.first_line
+        if isinstance(el.comma, cst.Comma):
+            pre_comma_whitespace = el.comma.whitespace_before
+        else:
+            pre_comma_whitespace = cst.SimpleWhitespace("")
+        el = el.with_changes(comma=cst.MaybeSentinel.DEFAULT)
+        units.append(
+            _DictEntry(
+                leading_comment,
+                leading_indent,
+                el,
+                pre_comma_whitespace,
+                trailing_comment,
+            )
+        )
 
     em = _EMPTY_MODULE
 
     sorted_units = sorted(units, key=lambda u: em.code_for_node(u.element.key).strip())
 
+    top_whitespace = node.lbrace.whitespace_after.with_changes(
+        empty_lines=sorted_units[0].leading_comment,
+        last_line=sorted_units[0].leading_indent,
+    )
+
     new_elements = []
     for j, unit in enumerate(sorted_units):
-        base_comma = unit.element.comma
         if j < len(sorted_units) - 1:
             leading_comment = sorted_units[j + 1].leading_comment
             leading_indent = sorted_units[j + 1].leading_indent
-            whitespace_after = _apply_whitespace(
-                base_comma.whitespace_after, leading_comment, leading_indent
+            whitespace_after = cst.ParenthesizedWhitespace(
+                first_line=unit.trailing_comment,
+                empty_lines=leading_comment,
+                last_line=leading_indent,
             )
-            new_comma = base_comma.with_changes(whitespace_after=whitespace_after)
+            new_comma = cst.Comma(unit.pre_comma_whitespace, whitespace_after)
         else:
-            whitespace_after = _apply_whitespace(
-                base_comma.whitespace_after, [], cst.SimpleWhitespace("")
-            )
-            new_comma = base_comma.with_changes(whitespace_after=whitespace_after)
+            if trailing_comma:
+                new_comma = cst.Comma(
+                    unit.pre_comma_whitespace, cst.SimpleWhitespace("")
+                )
+            else:
+                new_comma = cst.MaybeSentinel.DEFAULT
         element = unit.element.with_changes(comma=new_comma)
         new_elements.append(element)
 
-    top_whitespace = _apply_whitespace(
-        node.lbrace.whitespace_after,
-        sorted_units[0].leading_comment,
-        sorted_units[0].leading_indent,
+    bottom_whitespace = node.rbrace.whitespace_before.with_changes(
+        first_line=sorted_units[-1].trailing_comment
     )
-
-    rbrace_whitespace = node.rbrace.whitespace_before
-    rbrace = node.rbrace.with_changes(
-        whitespace_before=rbrace_whitespace.with_changes(
-            first_line=new_elements[-1].comma.whitespace_after.first_line
-        )
-    )
-    if trailing_comma:
-        new_elements[-1] = new_elements[-1].with_changes(
-            comma=new_elements[-1].comma.with_changes(
-                whitespace_after=cst.SimpleWhitespace("")
-            )
-        )
-    else:
-        new_elements[-1] = new_elements[-1].with_changes(
-            comma=cst.MaybeSentinel.DEFAULT
-        )
 
     return node.with_changes(
         lbrace=node.lbrace.with_changes(whitespace_after=top_whitespace),
         elements=new_elements,
-        rbrace=rbrace,
+        rbrace=node.rbrace.with_changes(whitespace_before=bottom_whitespace),
     )
 
 
